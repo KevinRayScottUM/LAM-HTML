@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAM for Super-Resolution: Interactive Demo</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent: #4caf50;
+            --accent-hover: #45a049;
+            --di-bar-bg: #333;
+            --di-fill-local: #ff9800;
+            --di-fill-nonlocal: #2196f3;
+            --lam-color: rgba(255, 0, 0, 0.6);
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 15px 20px;
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid #333;
+            text-align: center;
+        }
+
+        h1 { margin: 0; font-size: 1.2rem; font-weight: 500; }
+        h2 { margin: 0 0 10px 0; font-size: 1rem; color: var(--text-muted); }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            flex-wrap: wrap;
+        }
+
+        .column {
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Left Column: Context */
+        .col-left {
+            width: 20%;
+            min-width: 250px;
+            border-right: 1px solid #333;
+            background-color: #181818;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .thumb-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .thumb-label { font-size: 0.85rem; color: var(--text-muted); }
+        
+        .thumb-box {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .thumb-box img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .active-path-indicator {
+            margin-top: 10px;
+            padding: 10px;
+            background: #252525;
+            border-radius: 4px;
+            border-left: 3px solid var(--accent);
+        }
+
+        /* Center Column: Visualization */
+        .col-center {
+            width: 50%;
+            flex: 1;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-right: 1px solid #333;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 90%;
+            max-width: 800px;
+            aspect-ratio: 16/9;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+        }
+        
+        #overlayCanvas { pointer-events: none; }
+
+        .alpha-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 1.2rem;
+            color: #fff;
+            z-index: 10;
+        }
+
+        /* Right Column: Controls & Info */
+        .col-right {
+            width: 30%;
+            min-width: 300px;
+            background-color: var(--panel-bg);
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .control-panel {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+
+        .di-container {
+            margin-top: 15px;
+        }
+
+        .di-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .di-bar-bg {
+            width: 100%;
+            height: 10px;
+            background: var(--di-bar-bg);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .di-bar-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease-out, background-color 0.3s;
+        }
+
+        .info-table {
+            font-size: 0.9rem;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .info-table td { padding: 4px 0; vertical-align: top; }
+        .info-table .label { color: var(--text-muted); width: 80px; }
+
+        .explanation-box {
+            background: #252525;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid var(--accent);
+            min-height: 100px;
+        }
+        
+        .explanation-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        .nav-controls {
+            margin-top: auto;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .btn-next { background: var(--accent); color: white; flex: 1; }
+        .btn-next:hover { background: var(--accent-hover); }
+        .btn-prev { background: #444; color: white; width: 80px; }
+        .btn-prev:hover { background: #555; }
+        .btn-disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Patch Box Style (drawn on canvas usually, but CSS helps description) */
+        .patch-highlight {
+            border: 2px solid yellow;
+            position: absolute;
+            z-index: 5;
+            box-shadow: 0 0 10px yellow;
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Local Attribution Maps (LAM) for Super-Resolution</h1>
+</header>
+
+<div class="main-container">
+
+    <!-- LEFT COLUMN -->
+    <div class="column col-left">
+        <h2>Path Context</h2>
+        
+        <div class="thumb-group">
+            <span class="thumb-label">Original LR Input</span>
+            <div class="thumb-box">
+                <img id="thumb-orig" src="" alt="Original LR">
+            </div>
+        </div>
+
+        <div class="thumb-group">
+            <span class="thumb-label">Blurred Baseline (I')</span>
+            <div class="thumb-box">
+                <!-- Using canvas to blur the thumb for display -->
+                <canvas id="thumb-blur-canvas"></canvas>
+            </div>
+        </div>
+
+        <div class="active-path-indicator">
+            <div class="thumb-label">Current Path Step:</div>
+            <div style="font-size: 1.2rem; font-family: monospace; margin-top:5px;" id="path-alpha-display">α = 0.00</div>
+        </div>
+    </div>
+
+    <!-- CENTER COLUMN -->
+    <div class="column col-center">
+        <div class="canvas-wrapper">
+            <!-- Main Image Canvas -->
+            <canvas id="mainCanvas" width="800" height="450"></canvas>
+            <!-- Overlay Canvas for Heatmap -->
+            <canvas id="overlayCanvas" width="800" height="450"></canvas>
+            <div id="alpha-badge" class="alpha-badge">LR Input</div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="column col-right">
+        
+        <div class="control-panel">
+            <h2>Model Selector</h2>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="model" value="A" checked onchange="changeModel()">
+                    Model A: Local-only SR
+                </label>
+                <label>
+                    <input type="radio" name="model" value="B" onchange="changeModel()">
+                    Model B: Attention + Non-local
+                </label>
+            </div>
+
+            <div class="di-container">
+                <div class="di-label">
+                    <span>Diffusion Index (DI)</span>
+                    <span id="di-value">N/A</span>
+                </div>
+                <div class="di-bar-bg">
+                    <div id="di-bar" class="di-bar-fill" style="width: 0%; background-color: #555;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <table class="info-table">
+                <tr><td class="label">Baseline:</td><td>Gaussian Blurred Image</td></tr>
+                <tr><td class="label">Path:</td><td>Blur → Original LR</td></tr>
+                <tr><td class="label">Output:</td><td>SR Image (Sharpened)</td></tr>
+            </table>
+        </div>
+
+        <div class="explanation-box">
+            <div class="explanation-title" id="step-title">Step 1</div>
+            <div id="explanation-text">
+                We start from the low-resolution input image for super-resolution. No blur, no heatmap yet.
+            </div>
+        </div>
+
+        <div class="nav-controls">
+            <button id="btn-prev" class="btn-prev" onclick="prevStep()">Back</button>
+            <button id="btn-next" class="btn-next" onclick="nextStep()">Next Step</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- Configuration ---
+    const IMG_URL = "https://tse1.mm.bing.net/th/id/OIP.14J_iLij3JmAiRiuHVHFcQHaE8?rs=1&pid=ImgDetMain&o=7&rm=3";
+    const MAX_BLUR_PX = 20; 
+    
+    // Patch coordinates (relative 0-1)
+    const PATCH_CX = 0.4;
+    const PATCH_CY = 0.5;
+    const PATCH_SIZE = 0.1; // 10% of width
+
+    // State
+    let currentStep = 0;
+    let currentModel = 'A'; // 'A' or 'B'
+    let img = new Image();
+    let isImgLoaded = false;
+
+    // DOM Elements
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const oCtx = overlayCanvas.getContext('2d');
+    
+    const thumbOrig = document.getElementById('thumb-orig');
+    const thumbBlurCanvas = document.getElementById('thumb-blur-canvas');
+    
+    const txtAlpha = document.getElementById('path-alpha-display');
+    const txtBadge = document.getElementById('alpha-badge');
+    const txtStepTitle = document.getElementById('step-title');
+    const txtExplanation = document.getElementById('explanation-text');
+    
+    const diValue = document.getElementById('di-value');
+    const diBar = document.getElementById('di-bar');
+    
+    const btnNext = document.getElementById('btn-next');
+    const btnPrev = document.getElementById('btn-prev');
+
+    // Logic Steps Definition
+    // We map discrete steps to animation states
+    // States: 
+    // 0: Original LR
+    // 1: Baseline (Blurred)
+    // 2: Intermediate Path
+    // 3: SR Output + Patch Select
+    // 4: Accumulation 1 (25%)
+    // 5: Accumulation 2 (50%)
+    // 6: Accumulation 3 (75%)
+    // 7: Final LAM (100%) - Summary
+
+    const steps = [
+        {
+            title: "Step 1: Original Input",
+            blur: 0,
+            alpha: 1.0, // In path context (1 = original)
+            lamOpacity: 0,
+            showPatch: false,
+            text: "We start from the low-resolution input image. This is the ground truth input for the SR model."
+        },
+        {
+            title: "Step 2: Blurred Baseline",
+            blur: 1.0, // 100% of Max Blur
+            alpha: 0.0,
+            lamOpacity: 0,
+            showPatch: false,
+            text: "LAM uses a blurred image as the baseline (α=0) to represent the absence of high-frequency details. This is our starting point for the integral."
+        },
+        {
+            title: "Step 3: Progressive Path",
+            blur: 0.5,
+            alpha: 0.5,
+            lamOpacity: 0,
+            showPatch: false,
+            text: "We move along a progressive blurring path from the baseline (α=0) back to the original image (α=1). Here we see an intermediate step (α=0.5)."
+        },
+        {
+            title: "Step 4: Target Patch",
+            blur: 0,
+            alpha: 1.0,
+            lamOpacity: 0,
+            showPatch: true,
+            text: "We focus on a specific patch in the output (yellow box). We want to know: which input pixels helped reconstruct the texture inside this box?"
+        },
+        {
+            title: "Step 5a: Accumulating Attributes",
+            blur: 0.75, // Still blurry
+            alpha: 0.25,
+            lamOpacity: 0.25,
+            showPatch: true,
+            text: "We integrate gradients along the path. As the image gets sharper, we accumulate importance scores. Red areas start to emerge."
+        },
+        {
+            title: "Step 5b: Accumulating Attributes",
+            blur: 0.5,
+            alpha: 0.5,
+            lamOpacity: 0.5,
+            showPatch: true,
+            text: "Midway through the path. The heatmap intensifies. Observe the pattern forming based on the selected model."
+        },
+        {
+            title: "Step 5c: Accumulating Attributes",
+            blur: 0.25,
+            alpha: 0.75,
+            lamOpacity: 0.75,
+            showPatch: true,
+            text: "Nearing the original image. The accumulation highlights pixels that contribute most to the patch's reconstruction."
+        },
+        {
+            title: "Step 6: Final LAM & DI",
+            blur: 0,
+            alpha: 1.0,
+            lamOpacity: 1.0,
+            showPatch: true,
+            isFinal: true,
+            text: "" // Populated dynamically based on model
+        }
+    ];
+
+    // --- Initialization ---
+
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+        isImgLoaded = true;
+        thumbOrig.src = img.src;
+        // Draw blurred thumbnail
+        const tCtx = thumbBlurCanvas.getContext('2d');
+        thumbBlurCanvas.width = 300;
+        thumbBlurCanvas.height = 300 * (img.height/img.width);
+        tCtx.filter = `blur(8px)`;
+        tCtx.drawImage(img, 0, 0, thumbBlurCanvas.width, thumbBlurCanvas.height);
+        
+        render();
+    };
+    img.src = IMG_URL;
+
+    // --- Interaction ---
+
+    function changeModel() {
+        const radios = document.getElementsByName('model');
+        for(let r of radios) {
+            if(r.checked) currentModel = r.value;
+        }
+        // Reset to beginning or jump to step 4? 
+        // Prompt says "Reset animation to Step 1"
+        currentStep = 0;
+        render();
+    }
+
+    function nextStep() {
+        if(currentStep < steps.length - 1) {
+            currentStep++;
+            render();
+        }
+    }
+
+    function prevStep() {
+        if(currentStep > 0) {
+            currentStep--;
+            render();
+        }
+    }
+
+    // --- Rendering Logic ---
+
+    function render() {
+        if(!isImgLoaded) return;
+
+        const config = steps[currentStep];
+
+        // 1. Update UI Text
+        txtStepTitle.innerText = config.title;
+        txtAlpha.innerText = `α = ${config.alpha.toFixed(2)}`;
+        
+        // Badge Logic
+        if(currentStep === 0) txtBadge.innerText = "Original LR";
+        else if(currentStep === 1) txtBadge.innerText = "Baseline (I')";
+        else if(currentStep === 3) txtBadge.innerText = "SR Output"; // Simulated
+        else if(currentStep === 7) txtBadge.innerText = "Final LAM";
+        else txtBadge.innerText = `Path α=${config.alpha.toFixed(2)}`;
+
+        // Dynamic Text for Step 6 (Final)
+        if(config.isFinal) {
+            if(currentModel === 'A') {
+                txtExplanation.innerText = "Model A (Local): The attribution is tightly clustered around the patch. The model only looks at immediate neighbors. DI is low.";
+            } else {
+                txtExplanation.innerText = "Model B (Attention): The attribution spreads to distant areas with similar structures (e.g., other fence bars). The model uses non-local info. DI is high.";
+            }
+        } else {
+            txtExplanation.innerText = config.text;
+        }
+
+        // 2. Draw Main Image (Blurred or Sharp)
+        // Simulate SR output at step 3+ by just using the sharp original (since we don't have a real SR model)
+        // The blur amount is determined by the step config
+        const blurAmount = config.blur * MAX_BLUR_PX;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.filter = `blur(${blurAmount}px)`;
+        
+        // Use 'cover' style aspect ratio
+        const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+        const x = (canvas.width / 2) - (img.width / 2) * scale;
+        const y = (canvas.height / 2) - (img.height / 2) * scale;
+        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        ctx.filter = 'none'; // reset
+
+        // 3. Draw Heatmap Overlay
+        oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        
+        if (config.lamOpacity > 0) {
+            drawHeatmap(config.lamOpacity, x, y, scale);
+        }
+
+        // 4. Draw Patch Box
+        if (config.showPatch) {
+            // Calculate patch pos
+            // We use the image coordinates transformed to canvas
+            const patchW = img.width * PATCH_SIZE * scale;
+            const patchH = patchW; // square
+            const patchX = x + (img.width * PATCH_CX * scale) - patchW/2;
+            const patchY = y + (img.height * PATCH_CY * scale) - patchH/2;
+
+            oCtx.strokeStyle = "yellow";
+            oCtx.lineWidth = 3;
+            oCtx.shadowColor = "black";
+            oCtx.shadowBlur = 5;
+            oCtx.strokeRect(patchX, patchY, patchW, patchH);
+            oCtx.shadowBlur = 0;
+            
+            // Label
+            oCtx.fillStyle = "yellow";
+            oCtx.font = "bold 14px Arial";
+            oCtx.fillText("Target Patch", patchX, patchY - 8);
+        }
+
+        // 5. Update DI UI
+        updateDI(config);
+
+        // 6. Button State
+        btnPrev.disabled = currentStep === 0;
+        btnNext.disabled = currentStep === steps.length - 1;
+        btnPrev.classList.toggle('btn-disabled', currentStep === 0);
+        btnNext.classList.toggle('btn-disabled', currentStep === steps.length - 1);
+    }
+
+    function drawHeatmap(opacity, imgX, imgY, scale) {
+        // Center of the patch
+        const cx = imgX + (img.width * PATCH_CX * scale);
+        const cy = imgY + (img.height * PATCH_CY * scale);
+        
+        // Base radius relative to image size
+        const radiusBase = img.width * scale * 0.15;
+
+        // Configure Gradient
+        // We create a radial gradient.
+        // For Model A: One tight gradient.
+        // For Model B: One main gradient + several smaller distant ones.
+        
+        oCtx.globalAlpha = opacity;
+        
+        // Helper to draw a blob
+        const drawBlob = (bx, by, r, intensity) => {
+            const grad = oCtx.createRadialGradient(bx, by, 0, bx, by, r);
+            grad.addColorStop(0, `rgba(255, 0, 0, ${intensity})`);
+            grad.addColorStop(0.5, `rgba(255, 0, 0, ${intensity * 0.5})`);
+            grad.addColorStop(1, "rgba(255, 0, 0, 0)");
+            oCtx.fillStyle = grad;
+            oCtx.beginPath();
+            oCtx.arc(bx, by, r, 0, Math.PI*2);
+            oCtx.fill();
+        };
+
+        if (currentModel === 'A') {
+            // Local Only: Compact, intense center
+            drawBlob(cx, cy, radiusBase, 0.9);
+        } else {
+            // Non-Local: Center + Distant blobs
+            // Main center (slightly wider)
+            drawBlob(cx, cy, radiusBase * 1.2, 0.8);
+            
+            // Simulate distant attention (e.g. repeated patterns)
+            // Hardcoded positions relative to center to simulate "structure"
+            const offsets = [
+                {dx: -150, dy: -20, r: 0.6},
+                {dx: 140, dy: 10, r: 0.7},
+                {dx: -80, dy: 100, r: 0.5},
+                {dx: 90, dy: -90, r: 0.5}
+            ];
+
+            offsets.forEach(off => {
+                drawBlob(cx + off.dx, cy + off.dy, radiusBase * off.r, 0.6);
+            });
+        }
+
+        oCtx.globalAlpha = 1.0;
+    }
+
+    function updateDI(config) {
+        let val = 0;
+        let color = '#555';
+
+        // Only show actual DI values if we are in the accumulation phase
+        if (config.lamOpacity > 0) {
+            // Interpolate DI based on opacity/step for smooth animation feel
+            const progress = config.lamOpacity; 
+            
+            if(currentModel === 'A') {
+                const maxDI = 22.3;
+                val = maxDI * progress;
+                color = 'var(--di-fill-local)';
+            } else {
+                const maxDI = 78.5;
+                val = maxDI * progress;
+                color = 'var(--di-fill-nonlocal)';
+            }
+            
+            diValue.innerText = val.toFixed(1);
+            diBar.style.width = Math.min(val, 100) + "%";
+            diBar.style.backgroundColor = color;
+        } else {
+            diValue.innerText = "N/A";
+            diBar.style.width = "0%";
+            diBar.style.backgroundColor = "#555";
+        }
+    }
+
+    // Trigger initial render
+    // If image takes long, onload will catch it.
+</script>
+
+</body>
+</html>
